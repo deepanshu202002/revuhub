@@ -36,3 +36,10 @@ resource "aws_cloudfront_distribution" "frontend_distribution" {
   is_ipv6_enabled     = true
   default_root_object = "index.html"
 }
+output "frontend_distribution_id" {
+  value = aws_cloudfront_distribution.frontend_distribution.id
+}
+
+output "frontend_distribution_domain_name" {
+  value = aws_cloudfront_distribution.frontend_distribution.domain_name
+}
