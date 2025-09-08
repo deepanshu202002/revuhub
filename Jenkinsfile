@@ -29,13 +29,17 @@ pipeline {
             BACKEND_IP=$(terraform output -raw revuhub_instance_public_ip)
             CLOUDFRONT_DIST_ID=$(terraform output -raw frontend_distribution_id)
 
+            # Ensure directories exist before writing files
+            mkdir -p ../../frontend
+            mkdir -p ../../ansible
+
             # Write them to a file for frontend build
-            echo "REACT_APP_BACKEND_URL=http://$BACKEND_IP:4000/api" > ../frontend/deploy.env
-            echo "CLOUDFRONT_DIST_ID=$CLOUDFRONT_DIST_ID" >> ../frontend/deploy.env
+            echo "REACT_APP_BACKEND_URL=http://$BACKEND_IP:4000/api" > ../../frontend/deploy.env
+            echo "CLOUDFRONT_DIST_ID=$CLOUDFRONT_DIST_ID" >> ../../frontend/deploy.env
 
             # Dynamically create Ansible inventory
-            echo "[backend]" > ../ansible/inventory
-            echo "$BACKEND_IP ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/revuhub.pem" >> ../ansible/inventory
+            echo "[backend]" > ../../ansible/inventory
+            echo "$BACKEND_IP ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/revuhub.pem" >> ../../ansible/inventory
           '''
         }
       }
@@ -78,6 +82,9 @@ pipeline {
             # Convert to JSON for Ansible
             python3 -c "import json; print(json.dumps({'production_env_content': open('/tmp/production.env').read()}))" > /tmp/prod_env.json
 
+            # Ensure Ansible inventory directory exists
+            mkdir -p infra/ansible
+
             # Update inventory to use SSH key from Jenkins
             BACKEND_IP=$(terraform output -raw revuhub_instance_public_ip)
             echo "[backend]" > infra/ansible/inventory
@@ -98,6 +105,12 @@ pipeline {
             export AWS_SECRET_ACCESS_KEY=$AWS_SECRET
 
             cd frontend
+
+            # Ensure deploy.env exists
+            if [ ! -f deploy.env ]; then
+              echo "deploy.env not found!"
+              exit 1
+            fi
 
             # Load backend URL and CloudFront ID
             export $(cat deploy.env | xargs)
