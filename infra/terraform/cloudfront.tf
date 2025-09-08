@@ -9,6 +9,23 @@ resource "aws_cloudfront_distribution" "frontend_distribution" {
     cached_methods   = ["GET", "HEAD"]
     target_origin_id = "S3-revuhub"
     viewer_protocol_policy = "redirect-to-https"
+
+    forwarded_values {
+      query_string = false
+      cookies {
+        forward = "none"
+      }
+    }
+
+    min_ttl     = 0
+    default_ttl = 3600
+    max_ttl     = 86400
+  }
+
+  restrictions {
+    geo_restriction {
+      restriction_type = "none"
+    }
   }
 
   viewer_certificate {
