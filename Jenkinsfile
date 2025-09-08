@@ -26,8 +26,8 @@ pipeline {
             terraform apply -auto-approve
 
             # Capture backend EC2 IP and CloudFront distribution ID
-            BACKEND_IP=$(terraform output -raw revuhub_instance_public_ip)
-            CLOUDFRONT_DIST_ID=$(terraform output -raw frontend_distribution_id)
+            BACKEND_IP=$(terraform output revuhub_instance_public_ip | tr -d '"')
+            CLOUDFRONT_DIST_ID=$(terraform output frontend_distribution_id | tr -d '"')
 
             # Ensure directories exist before writing files
             mkdir -p ../../frontend
@@ -36,10 +36,6 @@ pipeline {
             # Write them to a file for frontend build
             echo "REACT_APP_BACKEND_URL=http://$BACKEND_IP:4000/api" > ../../frontend/deploy.env
             echo "CLOUDFRONT_DIST_ID=$CLOUDFRONT_DIST_ID" >> ../../frontend/deploy.env
-
-            # Dynamically create Ansible inventory
-            echo "[backend]" > ../../ansible/inventory
-            echo "$BACKEND_IP ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/revuhub.pem" >> ../../ansible/inventory
           '''
         }
       }
@@ -53,55 +49,49 @@ pipeline {
       }
     }
 
-  stage('Login & Push to ECR') {
+    stage('Login & Push to ECR') {
+      steps {
+        withCredentials([usernamePassword(credentialsId: 'aws-creds', usernameVariable: 'AWS_ID', passwordVariable: 'AWS_SECRET')]) {
+          sh '''
+            export AWS_ACCESS_KEY_ID=$AWS_ID
+            export AWS_SECRET_ACCESS_KEY=$AWS_SECRET
+
+            ECR_ACCOUNT_ID=$(echo ${ECR_REPO} | cut -d'/' -f1)
+
+            aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin $ECR_ACCOUNT_ID
+            docker push ${ECR_REPO}:${IMAGE_TAG}
+          '''
+        }
+      }
+    }
+
+    stage('Deploy Backend via Ansible') {
   steps {
-    withCredentials([usernamePassword(credentialsId: 'aws-creds', usernameVariable: 'AWS_ID', passwordVariable: 'AWS_SECRET')]) {
+    withCredentials([
+      string(credentialsId: 'revuhub-prod-env', variable: 'PROD_ENV'),
+      file(credentialsId: 'revuhub-ssh-key', variable: 'SSH_KEY')
+    ]) {
       sh '''
-        export AWS_ACCESS_KEY_ID=$AWS_ID
-        export AWS_SECRET_ACCESS_KEY=$AWS_SECRET
+        # Write backend secrets to temp file
+        echo "$PROD_ENV" > /tmp/production.env
+        chmod 600 /tmp/production.env
 
-        # Extract AWS account ID from ECR_REPO
-        ECR_ACCOUNT_ID=$(echo ${ECR_REPO} | cut -d'/' -f1)
+        # Convert to JSON for Ansible
+        python3 -c "import json; print(json.dumps({'production_env_content': open('/tmp/production.env').read()}))" > /tmp/prod_env.json
 
-        # Login to ECR
-        aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin $ECR_ACCOUNT_ID
+        # Create Ansible inventory dynamically
+        mkdir -p infra/ansible
+        BACKEND_IP=$(terraform output -raw revuhub_instance_public_ip)
+        echo "[backend]" > infra/ansible/inventory
+        echo "$BACKEND_IP ansible_user=ubuntu ansible_ssh_private_key_file=$SSH_KEY" >> infra/ansible/inventory
 
-        # Push image
-        docker push ${ECR_REPO}:${IMAGE_TAG}
+        # Run Ansible to deploy Docker container on EC2
+        ansible-playbook -i infra/ansible/inventory infra/ansible/playbook.yml --extra-vars "@/tmp/prod_env.json"
       '''
     }
   }
 }
 
-
-    stage('Deploy Backend via Ansible') {
-      steps {
-        withCredentials([
-          string(credentialsId: 'revuhub-prod-env', variable: 'PROD_ENV'),
-          file(credentialsId: 'revuhub-ssh-key', variable: 'SSH_KEY')
-        ]) {
-          sh '''
-            # Write backend secrets to temp file
-            echo "$PROD_ENV" > /tmp/production.env
-            chmod 600 /tmp/production.env
-
-            # Convert to JSON for Ansible
-            python3 -c "import json; print(json.dumps({'production_env_content': open('/tmp/production.env').read()}))" > /tmp/prod_env.json
-
-            # Ensure Ansible inventory directory exists
-            mkdir -p infra/ansible
-
-            # Update inventory to use SSH key from Jenkins
-            BACKEND_IP=$(terraform output -raw revuhub_instance_public_ip)
-            echo "[backend]" > infra/ansible/inventory
-            echo "$BACKEND_IP ansible_user=ubuntu ansible_ssh_private_key_file=$SSH_KEY" >> infra/ansible/inventory
-
-            # Run Ansible to deploy Docker container on EC2
-            ansible-playbook -i infra/ansible/inventory infra/ansible/playbook.yml --extra-vars "@/tmp/prod_env.json"
-          '''
-        }
-      }
-    }
 
     stage('Build Frontend & Deploy to S3') {
       steps {
@@ -112,22 +102,17 @@ pipeline {
 
             cd frontend
 
-            # Ensure deploy.env exists
             if [ ! -f deploy.env ]; then
               echo "deploy.env not found!"
               exit 1
             fi
 
-            # Load backend URL and CloudFront ID
             export $(cat deploy.env | xargs)
 
             npm ci
             npm run build
 
-            # Deploy frontend to S3
             aws s3 sync build/ s3://${S3_BUCKET} --delete
-
-            # Invalidate CloudFront cache
             aws cloudfront create-invalidation --distribution-id ${CLOUDFRONT_DIST_ID} --paths "/*"
           '''
         }
