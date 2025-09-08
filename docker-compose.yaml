@@ -1,0 +1,19 @@
+version: "3.8"
+services:
+  backend:
+    image: 842676016170.dkr.ecr.ap-south-1.amazonaws.com/revuhub-backend:latest
+    env_file:
+      - ./infra/ansible/secrets/production.env_file
+    restart: always
+    ports:
+      - "4000:4000"
+
+  nginx:
+    image: nginx:latest
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/revuhub.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./frontend/build:/usr/share/nginx/html:ro
+    depends_on:
+      - backend

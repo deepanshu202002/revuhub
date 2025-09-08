@@ -1,0 +1,67 @@
+- name: Deploy RevuHub backend
+  hosts: backend
+  become: yes
+  vars:
+    docker_image_tag: "{{ image_tag }}"
+  tasks:
+    - name: Install Docker
+      apt:
+        name: docker.io
+        state: present
+        update_cache: yes
+
+    - name: Install Docker Compose
+      get_url:
+        url: https://github.com/docker/compose/releases/download/v2.19.0/docker-compose-linux-x86_64
+        dest: /usr/local/bin/docker-compose
+        mode: "0755"
+
+    - name: Ensure backend directory exists
+      file:
+        path: /home/ubuntu/backend
+        state: directory
+
+    - name: Copy production.env
+      copy:
+        src: secrets/production.env
+        dest: /home/ubuntu/production.env
+        owner: ubuntu
+        group: ubuntu
+        mode: "0600"
+
+    - name: Deploy Docker Compose
+      template:
+        src: roles/backend/templates/docker-compose.yml.j2
+        dest: /home/ubuntu/backend/docker-compose.yml
+
+    - name: Start backend container
+      command: docker-compose -f /home/ubuntu/backend/docker-compose.yml up -d
+      args:
+        chdir: /home/ubuntu/backend
+
+    - name: Install Nginx
+      apt:
+        name: nginx
+        state: present
+        update_cache: yes
+
+    - name: Copy Nginx config
+      copy:
+        src: ../../nginx/revuhub.conf
+        dest: /etc/nginx/sites-available/revuhub.conf
+
+    - name: Enable Nginx site
+      file:
+        src: /etc/nginx/sites-available/revuhub.conf
+        dest: /etc/nginx/sites-enabled/revuhub.conf
+        state: link
+
+    - name: Remove default Nginx site
+      file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+
+    - name: Restart Nginx
+      service:
+        name: nginx
+        state: restarted
