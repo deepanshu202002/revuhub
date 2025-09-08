@@ -9,6 +9,7 @@ pipeline {
   }
 
   stages {
+
     stage('Checkout') {
       steps { checkout scm }
     }
@@ -25,8 +26,8 @@ pipeline {
             terraform apply -auto-approve
 
             # Capture backend EC2 IP and CloudFront distribution ID
-            BACKEND_IP=$(terraform output -raw backend_public_ip)
-            CLOUDFRONT_DIST_ID=$(terraform output -raw cloudfront_dist_id)
+            BACKEND_IP=$(terraform output -raw revuhub_instance_public_ip)
+            CLOUDFRONT_DIST_ID=$(terraform output -raw frontend_distribution_id)
 
             # Write them to a file for frontend build
             echo "REACT_APP_BACKEND_URL=http://$BACKEND_IP:4000/api" > ../frontend/deploy.env
@@ -55,6 +56,7 @@ pipeline {
             export AWS_ACCESS_KEY_ID=$AWS_ID
             export AWS_SECRET_ACCESS_KEY=$AWS_SECRET
 
+            # Login to ECR
             aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REPO.split('/')[0]}
             docker push ${ECR_REPO}:${IMAGE_TAG}
           '''
@@ -77,7 +79,7 @@ pipeline {
             python3 -c "import json; print(json.dumps({'production_env_content': open('/tmp/production.env').read()}))" > /tmp/prod_env.json
 
             # Update inventory to use SSH key from Jenkins
-            BACKEND_IP=$(terraform output -raw backend_public_ip)
+            BACKEND_IP=$(terraform output -raw revuhub_instance_public_ip)
             echo "[backend]" > infra/ansible/inventory
             echo "$BACKEND_IP ansible_user=ubuntu ansible_ssh_private_key_file=$SSH_KEY" >> infra/ansible/inventory
 
@@ -112,6 +114,7 @@ pipeline {
         }
       }
     }
+
   }
 
   post {

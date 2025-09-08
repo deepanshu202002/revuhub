@@ -2,7 +2,7 @@
   hosts: backend
   become: yes
   vars:
-    docker_image_tag: "{{ image_tag }}"
+    docker_image_tag: "{{ image_tag | default('latest') }}"
   tasks:
     - name: Install Docker
       apt:
@@ -23,7 +23,7 @@
 
     - name: Copy production.env
       copy:
-        src: secrets/production.env
+        content: "{{ production_env_content }}"
         dest: /home/ubuntu/production.env
         owner: ubuntu
         group: ubuntu
