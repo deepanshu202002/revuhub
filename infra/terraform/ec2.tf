@@ -4,9 +4,7 @@ variable "region" {
   default = "ap-south-1"
 }
 
-provider "aws" {
-  region = var.region
-}
+
 
 # Lookup latest Ubuntu AMI (bionic/focal/ubuntu). Adjust owners as needed.
 data "aws_ami" "ubuntu" {
@@ -49,44 +47,6 @@ resource "aws_route_table_association" "public_assoc" {
   route_table_id = aws_route_table.public_rt.id
 }
 
-resource "aws_security_group" "backend_sg" {
-  name        = "revuhub-backend-sg"
-  description = "Allow SSH, HTTP, HTTPS"
-  vpc_id      = aws_vpc.revuhub_vpc.id
-
-  ingress {
-    description = "SSH"
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    description = "HTTP"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    description = "HTTPS"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = { Name = "revuhub-backend-sg" }
-}
 
 # IAM role for EC2 to be able to pull from ECR and access S3
 resource "aws_iam_role" "ec2_role" {
