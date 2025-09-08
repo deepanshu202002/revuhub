@@ -1,12 +1,12 @@
 # infra/terraform/ec2.tf
+
+# Region
 variable "region" {
   type    = string
   default = "ap-south-1"
 }
 
-
-
-# Lookup latest Ubuntu AMI (bionic/focal/ubuntu). Adjust owners as needed.
+# Lookup latest Ubuntu AMI
 data "aws_ami" "ubuntu" {
   most_recent = true
   owners      = ["099720109477"] # Canonical
@@ -16,6 +16,7 @@ data "aws_ami" "ubuntu" {
   }
 }
 
+# VPC & Subnet
 resource "aws_vpc" "revuhub_vpc" {
   cidr_block = "10.0.0.0/16"
   tags = { Name = "revuhub-vpc" }
@@ -47,8 +48,7 @@ resource "aws_route_table_association" "public_assoc" {
   route_table_id = aws_route_table.public_rt.id
 }
 
-
-# IAM role for EC2 to be able to pull from ECR and access S3
+# IAM role for EC2 to pull from ECR and access S3
 resource "aws_iam_role" "ec2_role" {
   name = "revuhub-ec2-role"
   assume_role_policy = data.aws_iam_policy_document.ec2_assume_role.json
@@ -58,13 +58,13 @@ data "aws_iam_policy_document" "ec2_assume_role" {
   statement {
     actions = ["sts:AssumeRole"]
     principals {
-      type = "Service"
+      type        = "Service"
       identifiers = ["ec2.amazonaws.com"]
     }
   }
 }
 
-# Attach managed policies (ECR read + S3 read/write)
+# Attach managed policies
 resource "aws_iam_role_policy_attachment" "ecr_read" {
   role       = aws_iam_role.ec2_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
@@ -80,20 +80,15 @@ resource "aws_iam_instance_profile" "ec2_profile" {
   role = aws_iam_role.ec2_role.name
 }
 
-# Key pair (expects local public key in variable)
-variable "public_key_path" {
-  type    = string
-  default = "~/.ssh/id_rsa.pub"
-}
+# Generate SSH key with Terraform (no file in repo)
 resource "tls_private_key" "default_key" {
-  # This is optional. If user wants to provide own key, they can create aws_key_pair directly.
   algorithm = "RSA"
   rsa_bits  = 4096
 }
 
 resource "aws_key_pair" "revuhub_keypair" {
   key_name   = "revuhub-key"
-  public_key = file(var.public_key_path)
+  public_key = tls_private_key.default_key.public_key_openssh
 }
 
 # EC2 instance
@@ -125,6 +120,7 @@ resource "aws_instance" "revuhub" {
   tags = { Name = "revuhub-backend-instance" }
 }
 
+# Outputs
 output "revuhub_instance_public_ip" {
   value = aws_instance.revuhub.public_ip
 }
@@ -135,4 +131,10 @@ output "revuhub_instance_public_dns" {
 
 output "revuhub_security_group" {
   value = aws_security_group.backend_sg.id
+}
+
+# Optional: Save private key locally (useful to SSH manually)
+output "revuhub_private_key_pem" {
+  value     = tls_private_key.default_key.private_key_pem
+  sensitive = true
 }
