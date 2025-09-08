@@ -99,7 +99,7 @@ resource "aws_key_pair" "revuhub_keypair" {
 # EC2 instance
 resource "aws_instance" "revuhub" {
   ami                         = data.aws_ami.ubuntu.id
-  instance_type               = "t2.micro"
+  instance_type               = "t3.medium"
   subnet_id                   = aws_subnet.public.id
   vpc_security_group_ids      = [aws_security_group.backend_sg.id]
   associate_public_ip_address = true
