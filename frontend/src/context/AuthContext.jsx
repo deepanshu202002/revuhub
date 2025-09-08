@@ -44,7 +44,7 @@ export function useAuth() {
 
 export function GoogleAuthWrapper({ children }) {
   return (
-    <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
+    <GoogleOAuthProvider clientId={591507211815-evk7chd40soo41lilg8pp3qc64pev5l6.apps.googleusercontent.com}>
       {children}
     </GoogleOAuthProvider>
   );
