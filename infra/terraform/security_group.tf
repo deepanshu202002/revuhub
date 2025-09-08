@@ -1,7 +1,7 @@
 resource "aws_security_group" "backend_sg" {
   name        = "revuhub-backend-sg"
   description = "Allow SSH, HTTP, HTTPS"
-  vpc_id      = "<YOUR_VPC_ID>"
+   vpc_id = aws_vpc.revuhub_vpc.id 
 
   ingress {
     description = "SSH"
