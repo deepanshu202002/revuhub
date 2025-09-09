@@ -16,10 +16,10 @@ pipeline {
 
     stage('Terraform Init & Apply') {
       steps {
-        withCredentials([usernamePassword(credentialsId: 'aws-creds', usernameVariable: 'AWS_ID', passwordVariable: 'AWS_SECRET')]) {
+        withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-creds']]) {
           sh '''
-            export AWS_ACCESS_KEY_ID=$AWS_ID
-            export AWS_SECRET_ACCESS_KEY=$AWS_SECRET
+            export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
+            export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
             export AWS_DEFAULT_REGION=$AWS_REGION
 
             cd infra/terraform
@@ -51,75 +51,72 @@ pipeline {
     }
 
     stage('Login & Push to ECR') {
-  steps {
-    withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-creds']]) {
-      sh '''
-        export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
-        export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
-        export AWS_DEFAULT_REGION=$AWS_REGION
+      steps {
+        withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-creds']]) {
+          sh '''
+            export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
+            export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
+            export AWS_DEFAULT_REGION=$AWS_REGION
 
-        # Correct ECR login
-        aws ecr get-login-password --region $AWS_REGION | \
-          docker login --username AWS --password-stdin ${ECR_REPO%/*}
+            # Correct ECR login
+            aws ecr get-login-password --region $AWS_REGION | \
+              docker login --username AWS --password-stdin ${ECR_REPO%/*}
 
-        # Push the image
-        docker push $ECR_REPO:$BUILD_NUMBER
-      '''
+            # Push the image
+            docker push $ECR_REPO:$BUILD_NUMBER
+          '''
+        }
+      }
     }
-  }
-}
 
+    stage('Deploy Backend via Ansible') {
+      steps {
+        withCredentials([
+          file(credentialsId: 'revuhub-prod-env', variable: 'PROD_ENV'),
+          sshUserPrivateKey(credentialsId: 'revuhub-ssh-key', keyFileVariable: 'SSH_KEY')
+        ]) {
+          sh '''
+            chmod 600 $PROD_ENV
+            chmod 600 $SSH_KEY
 
-stage('Deploy Backend via Ansible') {
-  steps {
-    withCredentials([
-      file(credentialsId: 'revuhub-prod-env', variable: 'PROD_ENV'),
-      sshUserPrivateKey(credentialsId: 'revuhub-ssh-key', keyFileVariable: 'SSH_KEY')
-    ]) {
-      sh '''
-        chmod 600 $PROD_ENV
-        chmod 600 $SSH_KEY
+            mkdir -p infra/ansible
 
-        mkdir -p infra/ansible
+            # Convert env to JSON safely
+            python3 -c "import json; print(json.dumps({'production_env_content': open('$PROD_ENV').read()}))" > /tmp/prod_env.json
 
-        # Convert env to JSON safely
-        python3 -c "import json; print(json.dumps({'production_env_content': open('$PROD_ENV').read()}))" > /tmp/prod_env.json
+            # Get backend IP from Terraform
+            BACKEND_IP=$(cd infra/terraform && terraform output -raw revuhub_instance_public_ip 2>/dev/null || true)
 
-        # Get backend IP from Terraform
-        BACKEND_IP=$(cd infra/terraform && terraform output -raw revuhub_instance_public_ip 2>/dev/null || true)
+            if [ -n "$BACKEND_IP" ]; then
+              echo "[backend]" > infra/ansible/inventory
+              echo "$BACKEND_IP ansible_user=ubuntu ansible_ssh_private_key_file=$SSH_KEY" >> infra/ansible/inventory
 
-        if [ -n "$BACKEND_IP" ]; then
-          echo "[backend]" > infra/ansible/inventory
-          echo "$BACKEND_IP ansible_user=ubuntu ansible_ssh_private_key_file=$SSH_KEY" >> infra/ansible/inventory
+              # Add backend host to known_hosts to avoid SSH verification errors
+              mkdir -p ~/.ssh
+              ssh-keyscan -H $BACKEND_IP >> ~/.ssh/known_hosts
 
-          # Add backend host to known_hosts to avoid SSH verification errors
-          mkdir -p ~/.ssh
-          ssh-keyscan -H $BACKEND_IP >> ~/.ssh/known_hosts
+            else
+              echo "ERROR: No backend IP found from Terraform outputs!"
+              exit 1
+            fi
 
-        else
-          echo "ERROR: No backend IP found from Terraform outputs!"
-          exit 1
-        fi
+            # Disable Ansible host key checking (optional, extra safety)
+            export ANSIBLE_HOST_KEY_CHECKING=False
 
-        # Disable Ansible host key checking (optional, extra safety)
-        export ANSIBLE_HOST_KEY_CHECKING=False
-
-        # Run Ansible playbook
-        ansible-playbook -i infra/ansible/inventory infra/ansible/playbook.yml --extra-vars @/tmp/prod_env.json
-      '''
+            # Run Ansible playbook
+            ansible-playbook -i infra/ansible/inventory infra/ansible/playbook.yml --extra-vars @/tmp/prod_env.json
+          '''
+        }
+      }
     }
-  }
-}
-
-
 
     stage('Build Frontend & Deploy to S3') {
       steps {
-        withCredentials([usernamePassword(credentialsId: 'aws-creds', usernameVariable: 'AWS_ID', passwordVariable: 'AWS_SECRET')]) {
+        withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-creds']]) {
           sh '''
             # Export AWS credentials
-            export AWS_ACCESS_KEY_ID=$AWS_ID
-            export AWS_SECRET_ACCESS_KEY=$AWS_SECRET
+            export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
+            export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
             export AWS_DEFAULT_REGION=$AWS_REGION
 
             cd frontend
