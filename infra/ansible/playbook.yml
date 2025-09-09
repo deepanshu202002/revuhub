@@ -4,18 +4,13 @@
   become: yes
   vars:
     docker_image_tag: "{{ image_tag | default('latest') }}"
+    backend_dir: /home/ubuntu/backend
 
   tasks:
 
-    # -----------------------------
-    # Gather facts
-    # -----------------------------
     - name: Gather facts
       ansible.builtin.setup:
 
-    # -----------------------------
-    # Clean old Docker sources/keyrings
-    # -----------------------------
     - name: Remove old Docker list files
       file:
         path: "{{ item }}"
@@ -34,63 +29,33 @@
         - /etc/apt/keyrings/docker.gpg
         - /etc/apt/keyrings/docker.asc
 
-    - name: Remove old Docker repo entries from sources.list
-      lineinfile:
-        path: /etc/apt/sources.list
-        regexp: '^deb .*docker\.com'
-        state: absent
-
-    - name: Ensure /etc/apt/keyrings exists
-      file:
-        path: /etc/apt/keyrings
-        state: directory
-        mode: "0755"
-
-    # -----------------------------
-    # Add Docker repo safely
-    # -----------------------------
-    - name: Download Docker GPG key
-      ansible.builtin.command: >
-        curl -fsSL https://download.docker.com/linux/ubuntu/gpg |
-        gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-      args:
-        creates: /etc/apt/keyrings/docker.gpg
-
-    - name: Add Docker APT repository
-      ansible.builtin.apt_repository:
-        repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
-        state: present
-        filename: docker
-
-    - name: Update apt cache
+    - name: Update and upgrade apt packages
       apt:
         update_cache: yes
-        cache_valid_time: 3600
+        upgrade: dist
 
-    # -----------------------------
-    # Install Docker & Compose
-    # -----------------------------
-    - name: Install Docker packages
+    - name: Install required packages
       apt:
         name:
-          - docker-ce
-          - docker-ce-cli
-          - containerd.io
-        state: latest
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - software-properties-common
+          - gnupg
+        state: present
+        update_cache: yes
 
-    - name: Install Docker Compose
-      get_url:
-        url: https://github.com/docker/compose/releases/download/v2.19.0/docker-compose-linux-x86_64
-        dest: /usr/local/bin/docker-compose
-        mode: "0755"
+    - name: Install Docker using convenience script
+      shell: curl -fsSL https://get.docker.com | sh
+      args:
+        creates: /usr/bin/docker
 
-    # -----------------------------
-    # Backend deployment
-    # -----------------------------
     - name: Ensure backend directory exists
       file:
-        path: /home/ubuntu/backend
+        path: "{{ backend_dir }}"
         state: directory
+        owner: ubuntu
+        group: ubuntu
 
     - name: Copy production.env
       copy:
@@ -103,16 +68,21 @@
     - name: Deploy Docker Compose file
       template:
         src: roles/backend/templates/docker-compose.yml.j2
-        dest: /home/ubuntu/backend/docker-compose.yml
+        dest: "{{ backend_dir }}/docker-compose.yml"
+        owner: ubuntu
+        group: ubuntu
+
+    - name: Install Docker Compose
+      get_url:
+        url: https://github.com/docker/compose/releases/download/v2.19.0/docker-compose-linux-x86_64
+        dest: /usr/local/bin/docker-compose
+        mode: "0755"
 
     - name: Start backend container
-      command: docker-compose -f /home/ubuntu/backend/docker-compose.yml up -d
+      command: docker-compose -f {{ backend_dir }}/docker-compose.yml up -d
       args:
-        chdir: /home/ubuntu/backend
+        chdir: "{{ backend_dir }}"
 
-    # -----------------------------
-    # Nginx setup
-    # -----------------------------
     - name: Install Nginx
       apt:
         name: nginx
