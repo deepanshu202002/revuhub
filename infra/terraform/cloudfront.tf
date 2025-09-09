@@ -1,6 +1,3 @@
-# =====================
-# CloudFront Distribution
-# =====================
 resource "aws_cloudfront_distribution" "frontend_distribution" {
   origin {
     domain_name = aws_s3_bucket.frontend_bucket.bucket_regional_domain_name
@@ -8,9 +5,9 @@ resource "aws_cloudfront_distribution" "frontend_distribution" {
   }
 
   default_cache_behavior {
-    allowed_methods       = ["GET", "HEAD", "OPTIONS"]
-    cached_methods        = ["GET", "HEAD"]
-    target_origin_id      = "S3-revuhub"
+    allowed_methods        = ["GET", "HEAD", "OPTIONS"]
+    cached_methods         = ["GET", "HEAD"]
+    target_origin_id       = "S3-revuhub"
     viewer_protocol_policy = "redirect-to-https"
 
     forwarded_values {
@@ -34,13 +31,4 @@ resource "aws_cloudfront_distribution" "frontend_distribution" {
   enabled             = true
   is_ipv6_enabled     = true
   default_root_object = "index.html"
-}
-
-# Outputs for CloudFront
-output "frontend_distribution_id" {
-  value = aws_cloudfront_distribution.frontend_distribution.id
-}
-
-output "frontend_distribution_domain_name" {
-  value = aws_cloudfront_distribution.frontend_distribution.domain_name
 }
