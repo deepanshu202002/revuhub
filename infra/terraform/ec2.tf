@@ -13,79 +13,6 @@ data "aws_ami" "ubuntu" {
 data "aws_availability_zones" "available" {}
 
 # =====================
-# Networking
-# =====================
-resource "aws_vpc" "revuhub_vpc" {
-  cidr_block = "10.0.0.0/16"
-  tags       = { Name = "revuhub-vpc" }
-}
-
-resource "aws_subnet" "public" {
-  vpc_id                  = aws_vpc.revuhub_vpc.id
-  cidr_block              = "10.0.1.0/24"
-  map_public_ip_on_launch = true
-  availability_zone       = data.aws_availability_zones.available.names[0]
-  tags                    = { Name = "revuhub-public-subnet" }
-}
-
-resource "aws_internet_gateway" "igw" {
-  vpc_id = aws_vpc.revuhub_vpc.id
-  tags   = { Name = "revuhub-igw" }
-}
-
-resource "aws_route_table" "public_rt" {
-  vpc_id = aws_vpc.revuhub_vpc.id
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.igw.id
-  }
-}
-
-resource "aws_route_table_association" "public_assoc" {
-  subnet_id      = aws_subnet.public.id
-  route_table_id = aws_route_table.public_rt.id
-}
-
-# =====================
-# Security Group
-# =====================
-resource "aws_security_group" "backend_sg" {
-  name        = "revuhub-backend-sg"
-  description = "Allow SSH, HTTP, Jenkins"
-  vpc_id      = aws_vpc.revuhub_vpc.id
-
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    from_port   = 8080
-    to_port     = 8080
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = { Name = "revuhub-backend-sg" }
-}
-
-# =====================
 # IAM Role for EC2
 # =====================
 data "aws_iam_policy_document" "ec2_assume_role" {
@@ -124,11 +51,11 @@ resource "aws_iam_instance_profile" "ec2_profile" {
 resource "aws_instance" "revuhub" {
   ami                         = data.aws_ami.ubuntu.id
   instance_type               = "t3.medium"
-  subnet_id                   = aws_subnet.public.id
-  vpc_security_group_ids      = [aws_security_group.backend_sg.id]
+  subnet_id                   = aws_subnet.public.id           # Use subnet from your networking.tf
+  vpc_security_group_ids      = [aws_security_group.backend_sg.id]  # Use SG from security_group.tf
   associate_public_ip_address = true
   iam_instance_profile        = aws_iam_instance_profile.ec2_profile.name
-  key_name                    = "revuhub-key" 
+  key_name                    = "revuhub-key"                # Your pre-existing key
 
   root_block_device {
     volume_size = 20
@@ -151,20 +78,7 @@ resource "aws_instance" "revuhub" {
               systemctl start docker
               EOF
 
-  tags = { Name = "revuhub-backend-instance" }
-}
-
-# =====================
-# Outputs
-# =====================
-output "revuhub_instance_public_ip" {
-  value = aws_instance.revuhub.public_ip
-}
-
-output "revuhub_instance_public_dns" {
-  value = aws_instance.revuhub.public_dns
-}
-
-output "revuhub_security_group" {
-  value = aws_security_group.backend_sg.id
+  tags = {
+    Name = "revuhub-backend-instance"
+  }
 }
