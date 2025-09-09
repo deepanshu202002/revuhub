@@ -67,33 +67,39 @@ pipeline {
       }
     }
 
-    stage('Deploy Backend via Ansible') {
-      steps {
-        withCredentials([
-          file(credentialsId: 'revuhub-prod-env', variable: 'PROD_ENV'),
-          sshUserPrivateKey(credentialsId: 'revuhub-ssh-key', keyFileVariable: 'SSH_KEY')
-        ]) {
-          sh '''
-            chmod 600 $PROD_ENV
-            python3 -c "import json; print(json.dumps({'production_env_content': open('$PROD_ENV').read()}))" > /tmp/prod_env.json
+stage('Deploy Backend via Ansible') {
+  steps {
+    withCredentials([
+      file(credentialsId: 'revuhub-prod-env', variable: 'PROD_ENV'),
+      sshUserPrivateKey(credentialsId: 'revuhub-ssh-key', keyFileVariable: 'SSH_KEY')
+    ]) {
+      sh '''
+        chmod 600 $PROD_ENV
+        chmod 600 $SSH_KEY
 
-            mkdir -p infra/ansible
+        mkdir -p infra/ansible
 
-            BACKEND_IP=$(cd infra/terraform && terraform output -raw revuhub_instance_public_ip 2>/dev/null || true)
+        # Convert env to JSON safely
+        python3 -c "import json; print(json.dumps({'production_env_content': open('$PROD_ENV').read()}))" > /tmp/prod_env.json
 
-            if [ -n "$BACKEND_IP" ]; then
-              echo "[backend]" > infra/ansible/inventory
-              echo "$BACKEND_IP ansible_user=ubuntu ansible_ssh_private_key_file=$SSH_KEY" >> infra/ansible/inventory
-            else
-              echo "ERROR: No backend IP found from Terraform outputs!"
-              exit 1
-            fi
+        # Get backend IP from Terraform
+        BACKEND_IP=$(cd infra/terraform && terraform output -raw revuhub_instance_public_ip 2>/dev/null || true)
 
-            ansible-playbook -i infra/ansible/inventory infra/ansible/playbook.yml --extra-vars @/tmp/prod_env.json
-          '''
-        }
-      }
+        if [ -n "$BACKEND_IP" ]; then
+          echo "[backend]" > infra/ansible/inventory
+          echo "$BACKEND_IP ansible_user=ubuntu ansible_ssh_private_key_file=$SSH_KEY" >> infra/ansible/inventory
+        else
+          echo "ERROR: No backend IP found from Terraform outputs!"
+          exit 1
+        fi
+
+        # Run Ansible playbook
+        ansible-playbook -i infra/ansible/inventory infra/ansible/playbook.yml --extra-vars @/tmp/prod_env.json
+      '''
     }
+  }
+}
+
 
     stage('Build Frontend & Deploy to S3') {
       steps {
