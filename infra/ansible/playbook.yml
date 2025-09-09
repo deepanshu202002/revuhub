@@ -1,10 +1,14 @@
-- name: Deploy RevuHub backend
-  hosts: backend
+---
+- name: Setup EC2 with Docker, Docker Compose, and Nginx
+  hosts: all
   become: yes
-  vars:
-    docker_image_tag: "{{ image_tag | default('latest') }}"
 
   tasks:
+    - name: Update and upgrade apt packages
+      apt:
+        update_cache: yes
+        upgrade: dist
+
     - name: Install prerequisites
       apt:
         name: "{{ item }}"
@@ -15,16 +19,25 @@
         - ca-certificates
         - curl
         - software-properties-common
+        - gnupg
 
-    - name: Add Docker GPG key
-      apt_key:
+    - name: Ensure /etc/apt/keyrings exists
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: "0755"
+
+    - name: Add Docker GPG key (idempotent)
+      get_url:
         url: https://download.docker.com/linux/ubuntu/gpg
-        state: present
+        dest: /etc/apt/keyrings/docker.asc
+        mode: "0644"
 
     - name: Add Docker APT repository
       apt_repository:
-        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
         state: present
+        filename: docker
 
     - name: Install Docker CE
       apt:
@@ -34,54 +47,43 @@
 
     - name: Install Docker Compose
       get_url:
-        url: https://github.com/docker/compose/releases/download/v2.19.0/docker-compose-linux-x86_64
+        url: https://github.com/docker/compose/releases/download/v2.24.5/docker-compose-{{ ansible_system | lower }}-{{ ansible_architecture }}
         dest: /usr/local/bin/docker-compose
         mode: "0755"
 
-    - name: Ensure backend directory exists
+    - name: Create symlink for docker-compose
       file:
-        path: /home/ubuntu/backend
-        state: directory
+        src: /usr/local/bin/docker-compose
+        dest: /usr/bin/docker-compose
+        state: link
 
-    - name: Copy production.env
-      copy:
-        content: "{{ production_env_content }}"
-        dest: /home/ubuntu/production.env
-        owner: ubuntu
-        group: ubuntu
-        mode: "0600"
-
-    - name: Deploy Docker Compose
-      template:
-        src: roles/backend/templates/docker-compose.yml.j2
-        dest: /home/ubuntu/backend/docker-compose.yml
-
-    - name: Start backend container
-      command: docker-compose -f /home/ubuntu/backend/docker-compose.yml up -d
-      args:
-        chdir: /home/ubuntu/backend
-
-    - name: Install Nginx
-      apt:
-        name: nginx
-        state: present
-        update_cache: yes
+    - name: Ensure Docker service is running
+      service:
+        name: docker
+        state: started
+        enabled: yes
 
     - name: Copy Nginx config
       copy:
-        src: ../../nginx/revuhub.conf
+        src: ./nginx/revuhub.conf
         dest: /etc/nginx/sites-available/revuhub.conf
 
-    - name: Enable Nginx site
+    - name: Enable Nginx config
       file:
         src: /etc/nginx/sites-available/revuhub.conf
         dest: /etc/nginx/sites-enabled/revuhub.conf
         state: link
+        force: yes
 
-    - name: Remove default Nginx site
-      file:
-        path: /etc/nginx/sites-enabled/default
-        state: absent
+    - name: Test Nginx config
+      command: nginx -t
+      register: nginx_test
+      ignore_errors: yes
+
+    - name: Fail if Nginx config is invalid
+      fail:
+        msg: "Nginx configuration is invalid"
+      when: nginx_test.rc != 0
 
     - name: Restart Nginx
       service:
