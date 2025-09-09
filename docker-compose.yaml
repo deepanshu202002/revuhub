@@ -17,6 +17,6 @@ services:
       # Make sure this path is a FILE, not a directory
       - ./nginx/revuhub.conf:/etc/nginx/conf.d/default.conf:ro
       # Make sure this path is a DIRECTORY
-      - ./frontend/build:/usr/share/nginx/html:ro
+      - ./frontend/build:/usr/share/nginx/html
     depends_on:
       - backend
