@@ -1,94 +1,96 @@
 ---
-- name: Deploy RevuHub Backend
+- name: Deploy RevuHub Backend (Idempotent)
   hosts: backend
   become: yes
   vars:
     docker_image_tag: "{{ image_tag | default('latest') }}"
+
   tasks:
 
-    # ----------------------------
-    # System Update & Cleanup
-    # ----------------------------
-    - name: Update and upgrade apt packages
-      apt:
-        update_cache: yes
-        upgrade: dist
+    # -----------------------------
+    # Gather facts
+    # -----------------------------
+    - name: Gather facts
+      ansible.builtin.setup:
 
-    - name: Remove old Docker APT list files
+    # -----------------------------
+    # Clean old Docker sources/keyrings
+    # -----------------------------
+    - name: Remove old Docker list files
       file:
-        path: /etc/apt/sources.list.d/docker.list
+        path: "{{ item }}"
         state: absent
+      loop:
+        - /etc/apt/sources.list.d/docker.list
+        - /etc/apt/sources.list.d/docker.list.save
+        - /etc/apt/sources.list.d/docker.list.distUpgrade
+        - /etc/apt/sources.list.d/docker.list.save.distUpgrade
 
-    - name: Remove any leftover Docker keyrings
+    - name: Remove old Docker keyrings
       file:
-        path: /etc/apt/keyrings/docker.gpg
+        path: "{{ item }}"
         state: absent
+      loop:
+        - /etc/apt/keyrings/docker.gpg
+        - /etc/apt/keyrings/docker.asc
 
     - name: Remove old Docker repo entries from sources.list
       lineinfile:
         path: /etc/apt/sources.list
-        regexp: '^deb .*download.docker.com.*'
+        regexp: '^deb .*docker\.com'
         state: absent
 
     - name: Ensure /etc/apt/keyrings exists
       file:
         path: /etc/apt/keyrings
         state: directory
-        mode: '0755'
+        mode: "0755"
 
+    # -----------------------------
+    # Add Docker repo safely
+    # -----------------------------
     - name: Download Docker GPG key
-      shell: |
-        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+      ansible.builtin.command: >
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg |
+        gpg --dearmor -o /etc/apt/keyrings/docker.gpg
       args:
         creates: /etc/apt/keyrings/docker.gpg
 
-    - name: Ensure proper permissions on Docker keyring
-      file:
-        path: /etc/apt/keyrings/docker.gpg
-        owner: root
-        group: root
-        mode: '0644'
+    - name: Add Docker APT repository
+      ansible.builtin.apt_repository:
+        repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+        filename: docker
 
-    - name: Add Docker repository
-      copy:
-        dest: /etc/apt/sources.list.d/docker.list
-        content: |
-          deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable
-        mode: '0644'
-
-    - name: Clean apt cache
-      apt:
-        autoclean: yes
-        update_cache: yes
-
-    - name: Update apt cache after Docker repo setup
+    - name: Update apt cache
       apt:
         update_cache: yes
+        cache_valid_time: 3600
 
+    # -----------------------------
+    # Install Docker & Compose
+    # -----------------------------
     - name: Install Docker packages
       apt:
         name:
           - docker-ce
           - docker-ce-cli
           - containerd.io
-        state: present
+        state: latest
 
     - name: Install Docker Compose
       get_url:
         url: https://github.com/docker/compose/releases/download/v2.19.0/docker-compose-linux-x86_64
         dest: /usr/local/bin/docker-compose
-        mode: '0755'
+        mode: "0755"
 
-    # ----------------------------
-    # Prepare Backend Directory
-    # ----------------------------
+    # -----------------------------
+    # Backend deployment
+    # -----------------------------
     - name: Ensure backend directory exists
       file:
         path: /home/ubuntu/backend
         state: directory
-        owner: ubuntu
-        group: ubuntu
-        mode: '0755'
 
     - name: Copy production.env
       copy:
@@ -96,24 +98,21 @@
         dest: /home/ubuntu/production.env
         owner: ubuntu
         group: ubuntu
-        mode: '0600'
+        mode: "0600"
 
     - name: Deploy Docker Compose file
       template:
         src: roles/backend/templates/docker-compose.yml.j2
         dest: /home/ubuntu/backend/docker-compose.yml
-        owner: ubuntu
-        group: ubuntu
-        mode: '0644'
 
     - name: Start backend container
       command: docker-compose -f /home/ubuntu/backend/docker-compose.yml up -d
       args:
         chdir: /home/ubuntu/backend
 
-    # ----------------------------
-    # Nginx Setup
-    # ----------------------------
+    # -----------------------------
+    # Nginx setup
+    # -----------------------------
     - name: Install Nginx
       apt:
         name: nginx
@@ -124,9 +123,6 @@
       copy:
         src: ../../nginx/revuhub.conf
         dest: /etc/nginx/sites-available/revuhub.conf
-        owner: root
-        group: root
-        mode: '0644'
 
     - name: Enable Nginx site
       file:
