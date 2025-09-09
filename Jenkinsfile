@@ -88,10 +88,18 @@ stage('Deploy Backend via Ansible') {
         if [ -n "$BACKEND_IP" ]; then
           echo "[backend]" > infra/ansible/inventory
           echo "$BACKEND_IP ansible_user=ubuntu ansible_ssh_private_key_file=$SSH_KEY" >> infra/ansible/inventory
+
+          # Add backend host to known_hosts to avoid SSH verification errors
+          mkdir -p ~/.ssh
+          ssh-keyscan -H $BACKEND_IP >> ~/.ssh/known_hosts
+
         else
           echo "ERROR: No backend IP found from Terraform outputs!"
           exit 1
         fi
+
+        # Disable Ansible host key checking (optional, extra safety)
+        export ANSIBLE_HOST_KEY_CHECKING=False
 
         # Run Ansible playbook
         ansible-playbook -i infra/ansible/inventory infra/ansible/playbook.yml --extra-vars @/tmp/prod_env.json
@@ -99,6 +107,7 @@ stage('Deploy Backend via Ansible') {
     }
   }
 }
+
 
 
     stage('Build Frontend & Deploy to S3') {
