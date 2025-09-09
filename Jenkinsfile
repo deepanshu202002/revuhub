@@ -51,21 +51,24 @@ pipeline {
     }
 
     stage('Login & Push to ECR') {
-      steps {
-        withCredentials([usernamePassword(credentialsId: 'aws-creds', usernameVariable: 'AWS_ID', passwordVariable: 'AWS_SECRET')]) {
-          sh '''
-            export AWS_ACCESS_KEY_ID=$AWS_ID
-            export AWS_SECRET_ACCESS_KEY=$AWS_SECRET
-            export AWS_DEFAULT_REGION=$AWS_REGION
+  steps {
+    withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-creds']]) {
+      sh '''
+        export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
+        export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
+        export AWS_DEFAULT_REGION=$AWS_REGION
 
-            ECR_ACCOUNT_ID=$(echo ${ECR_REPO} | cut -d'/' -f1)
+        # Correct ECR login
+        aws ecr get-login-password --region $AWS_REGION | \
+          docker login --username AWS --password-stdin ${ECR_REPO%/*}
 
-            aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin $ECR_ACCOUNT_ID
-            docker push ${ECR_REPO}:${IMAGE_TAG}
-          '''
-        }
-      }
+        # Push the image
+        docker push $ECR_REPO:$BUILD_NUMBER
+      '''
     }
+  }
+}
+
 
 stage('Deploy Backend via Ansible') {
   steps {
