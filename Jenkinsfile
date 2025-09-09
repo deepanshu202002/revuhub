@@ -104,7 +104,8 @@ pipeline {
             export ANSIBLE_HOST_KEY_CHECKING=False
 
             # Run Ansible playbook
-            ansible-playbook -i infra/ansible/inventory infra/ansible/playbook.yml --extra-vars @/tmp/prod_env.json
+            ansible-playbook -i infra/ansible/inventory infra/ansible/playbook.yml  --extra-vars "docker_image_tag=${IMAGE_TAG}" \ 
+            --extra-vars @/tmp/prod_env.json
           '''
         }
       }

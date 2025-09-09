@@ -1,7 +1,7 @@
 version: "3.8"
 services:
   backend:
-    image: {{ aws_account_id }}.dkr.ecr.{{ aws_region }}.amazonaws.com/revuhub-backend:{{ docker_image_tag }}
+    image:  842676016170.dkr.ecr.ap-south-1.amazonaws.com/revuhub-backend:{{ docker_image_tag }}
     env_file:
       - /home/ubuntu/production.env
     restart: always
