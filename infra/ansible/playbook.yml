@@ -104,29 +104,4 @@
       args:
         chdir: "{{ backend_dir }}"
 
-    - name: Install Nginx
-      apt:
-        name: nginx
-        state: present
-        update_cache: yes
 
-    - name: Copy Nginx config
-      copy:
-        src: ../../nginx/revuhub.conf
-        dest: /etc/nginx/sites-available/revuhub.conf
-
-    - name: Enable Nginx site
-      file:
-        src: /etc/nginx/sites-available/revuhub.conf
-        dest: /etc/nginx/sites-enabled/revuhub.conf
-        state: link
-
-    - name: Remove default Nginx site
-      file:
-        path: /etc/nginx/sites-enabled/default
-        state: absent
-
-    - name: Restart Nginx
-      service:
-        name: nginx
-        state: restarted
