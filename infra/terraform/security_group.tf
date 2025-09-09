@@ -1,6 +1,3 @@
-# =====================
-# Security Group
-# =====================
 resource "aws_security_group" "backend_sg" {
   name        = "revuhub-backend-sg"
   description = "Allow SSH, HTTP, Jenkins"

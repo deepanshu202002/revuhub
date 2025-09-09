@@ -1,8 +1,4 @@
-# =====================
-# EC2 Instance + IAM + Keypair
-# =====================
-
-# IAM Role for EC2
+# IAM Role & Policy
 data "aws_iam_policy_document" "ec2_assume_role" {
   statement {
     actions = ["sts:AssumeRole"]
@@ -33,17 +29,15 @@ resource "aws_iam_instance_profile" "ec2_profile" {
   role = aws_iam_role.ec2_role.name
 }
 
-# Use pre-existing keypair (already in AWS)
 variable "key_name" {
   type        = string
   description = "Pre-existing AWS EC2 keypair"
-  default     = "revuhub-key"  # change if needed
+  default     = "revuhub-key"
 }
 
-# EC2 Instance
 data "aws_ami" "ubuntu" {
   most_recent = true
-  owners      = ["099720109477"] # Canonical
+  owners      = ["099720109477"]
   filter {
     name   = "name"
     values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]

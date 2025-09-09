@@ -1,13 +1,8 @@
-# =====================
-# S3 Bucket
-# =====================
 resource "aws_s3_bucket" "frontend_bucket" {
   bucket        = "revuhub-frontend"
   force_destroy = true
 
-  tags = {
-    Name = "revuhub-frontend"
-  }
+  tags = { Name = "revuhub-frontend" }
 }
 
 resource "aws_s3_bucket_public_access_block" "frontend_block" {
@@ -17,5 +12,3 @@ resource "aws_s3_bucket_public_access_block" "frontend_block" {
   ignore_public_acls      = false
   restrict_public_buckets = false
 }
-
-
