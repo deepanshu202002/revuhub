@@ -1,10 +1,12 @@
+# =====================
+# Security Group
+# =====================
 resource "aws_security_group" "backend_sg" {
   name        = "revuhub-backend-sg"
-  description = "Allow SSH, HTTP, HTTPS"
-   vpc_id = aws_vpc.revuhub_vpc.id 
+  description = "Allow SSH, HTTP, Jenkins"
+  vpc_id      = aws_vpc.revuhub_vpc.id
 
   ingress {
-    description = "SSH"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
@@ -12,7 +14,6 @@ resource "aws_security_group" "backend_sg" {
   }
 
   ingress {
-    description = "HTTP"
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
@@ -20,9 +21,8 @@ resource "aws_security_group" "backend_sg" {
   }
 
   ingress {
-    description = "HTTPS"
-    from_port   = 443
-    to_port     = 443
+    from_port   = 8080
+    to_port     = 8080
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
@@ -33,8 +33,6 @@ resource "aws_security_group" "backend_sg" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-}
 
-output "backend_sg_id" {
-  value = aws_security_group.backend_sg.id
+  tags = { Name = "revuhub-backend-sg" }
 }
