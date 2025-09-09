@@ -1,12 +1,18 @@
-# infra/terraform/ec2.tf
-
+# =====================
 # Region
+# =====================
 variable "region" {
   type    = string
   default = "ap-south-1"
 }
 
+provider "aws" {
+  region = var.region
+}
+
+# =====================
 # Lookup latest Ubuntu AMI
+# =====================
 data "aws_ami" "ubuntu" {
   most_recent = true
   owners      = ["099720109477"] # Canonical
@@ -16,23 +22,27 @@ data "aws_ami" "ubuntu" {
   }
 }
 
-# VPC & Subnet
+# =====================
+# Networking
+# =====================
 resource "aws_vpc" "revuhub_vpc" {
   cidr_block = "10.0.0.0/16"
-  tags = { Name = "revuhub-vpc" }
+  tags       = { Name = "revuhub-vpc" }
 }
 
 resource "aws_subnet" "public" {
   vpc_id                  = aws_vpc.revuhub_vpc.id
   cidr_block              = "10.0.1.0/24"
   map_public_ip_on_launch = true
-  availability_zone       = "${var.region}a"
-  tags = { Name = "revuhub-public-subnet" }
+  availability_zone       = data.aws_availability_zones.available.names[0]
+  tags                    = { Name = "revuhub-public-subnet" }
 }
+
+data "aws_availability_zones" "available" {}
 
 resource "aws_internet_gateway" "igw" {
   vpc_id = aws_vpc.revuhub_vpc.id
-  tags = { Name = "revuhub-igw" }
+  tags   = { Name = "revuhub-igw" }
 }
 
 resource "aws_route_table" "public_rt" {
@@ -48,9 +58,61 @@ resource "aws_route_table_association" "public_assoc" {
   route_table_id = aws_route_table.public_rt.id
 }
 
-# IAM role for EC2 to pull from ECR and access S3
+# =====================
+# Security Group
+# =====================
+resource "aws_security_group" "backend_sg" {
+  name        = "revuhub-backend-sg"
+  description = "Allow SSH, HTTP, HTTPS, and backend traffic"
+  vpc_id      = aws_vpc.revuhub_vpc.id
+
+  ingress {
+    description = "SSH"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "HTTP"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "Backend API"
+    from_port   = 4000
+    to_port     = 4000
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "HTTPS"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = { Name = "revuhub-backend-sg" }
+}
+
+# =====================
+# IAM Role for EC2
+# =====================
 resource "aws_iam_role" "ec2_role" {
-  name = "revuhub-ec2-role"
+  name               = "revuhub-ec2-role"
   assume_role_policy = data.aws_iam_policy_document.ec2_assume_role.json
 }
 
@@ -64,7 +126,6 @@ data "aws_iam_policy_document" "ec2_assume_role" {
   }
 }
 
-# Attach managed policies
 resource "aws_iam_role_policy_attachment" "ecr_read" {
   role       = aws_iam_role.ec2_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
@@ -80,7 +141,9 @@ resource "aws_iam_instance_profile" "ec2_profile" {
   role = aws_iam_role.ec2_role.name
 }
 
-# Generate SSH key with Terraform (no file in repo)
+# =====================
+# SSH Key
+# =====================
 resource "tls_private_key" "default_key" {
   algorithm = "RSA"
   rsa_bits  = 4096
@@ -91,7 +154,9 @@ resource "aws_key_pair" "revuhub_keypair" {
   public_key = tls_private_key.default_key.public_key_openssh
 }
 
-# EC2 instance
+# =====================
+# EC2 Instance
+# =====================
 resource "aws_instance" "revuhub" {
   ami                         = data.aws_ami.ubuntu.id
   instance_type               = "t3.medium"
@@ -120,7 +185,9 @@ resource "aws_instance" "revuhub" {
   tags = { Name = "revuhub-backend-instance" }
 }
 
+# =====================
 # Outputs
+# =====================
 output "revuhub_instance_public_ip" {
   value = aws_instance.revuhub.public_ip
 }
@@ -133,7 +200,6 @@ output "revuhub_security_group" {
   value = aws_security_group.backend_sg.id
 }
 
-# Optional: Save private key locally (useful to SSH manually)
 output "revuhub_private_key_pem" {
   value     = tls_private_key.default_key.private_key_pem
   sensitive = true

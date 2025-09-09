@@ -92,32 +92,34 @@ pipeline {
   }
 }
 
+stage('Build Frontend & Deploy to S3') {
+    steps {
+        withCredentials([
+            string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+            string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
+        ]) {
+            sh '''
+              # Export AWS credentials
+              export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
+              export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
+              export AWS_DEFAULT_REGION=ap-south-1
 
-    stage('Build Frontend & Deploy to S3') {
-      steps {
-        withCredentials([usernamePassword(credentialsId: 'aws-creds', usernameVariable: 'AWS_ID', passwordVariable: 'AWS_SECRET')]) {
-          sh '''
-            export AWS_ACCESS_KEY_ID=$AWS_ID
-            export AWS_SECRET_ACCESS_KEY=$AWS_SECRET
+              cd frontend
 
-            cd frontend
+              # Load environment variables if deploy.env exists
+              [ ! -f deploy.env ] || export $(cat deploy.env | xargs)
 
-            if [ ! -f deploy.env ]; then
-              echo "deploy.env not found!"
-              exit 1
-            fi
+              # Install dependencies & build frontend
+              npm ci
+              npm run build
 
-            export $(cat deploy.env | xargs)
-
-            npm ci
-            npm run build
-
-            aws s3 sync build/ s3://${S3_BUCKET} --delete
-            aws cloudfront create-invalidation --distribution-id ${CLOUDFRONT_DIST_ID} --paths "/*"
-          '''
+              # Sync build output (Vite -> dist/) to S3
+              aws s3 sync dist/ s3://revuhub-frontend --delete
+            '''
         }
-      }
     }
+}
+
 
   }
 
