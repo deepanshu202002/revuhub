@@ -6,9 +6,9 @@
     docker_image_tag: "{{ image_tag | default('latest') }}"
   tasks:
 
-    ############################################################
-    # 1️⃣ Cleanup old Docker repos to avoid Signed-By conflicts
-    ############################################################
+    # ----------------------------
+    # Docker Setup
+    # ----------------------------
     - name: Remove old Docker APT list files
       file:
         path: /etc/apt/sources.list.d/docker.list
@@ -25,22 +25,14 @@
         regexp: '^deb .*download.docker.com.*'
         state: absent
 
-    ############################################################
-    # 2️⃣ Ensure keyrings folder exists
-    ############################################################
     - name: Ensure /etc/apt/keyrings exists
       file:
         path: /etc/apt/keyrings
         state: directory
         mode: '0755'
 
-    ############################################################
-    # 3️⃣ Add Docker GPG key and repository
-    ############################################################
     - name: Download Docker GPG key
-      command: >
-        curl -fsSL https://download.docker.com/linux/ubuntu/gpg |
-        gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+      shell: curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
       args:
         creates: /etc/apt/keyrings/docker.gpg
 
@@ -55,14 +47,13 @@
       apt:
         update_cache: yes
 
-    ############################################################
-    # 4️⃣ Install Docker and Docker Compose
-    ############################################################
     - name: Install Docker
       apt:
-        name: docker-ce docker-ce-cli containerd.io
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
         state: present
-        update_cache: yes
 
     - name: Install Docker Compose
       get_url:
@@ -70,13 +61,16 @@
         dest: /usr/local/bin/docker-compose
         mode: "0755"
 
-    ############################################################
-    # 5️⃣ Setup backend directory and environment
-    ############################################################
+    # ----------------------------
+    # Backend Deployment
+    # ----------------------------
     - name: Ensure backend directory exists
       file:
         path: /home/ubuntu/backend
         state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: "0755"
 
     - name: Copy production.env
       copy:
@@ -86,22 +80,22 @@
         group: ubuntu
         mode: "0600"
 
-    ############################################################
-    # 6️⃣ Deploy backend via Docker Compose
-    ############################################################
-    - name: Deploy Docker Compose
+    - name: Deploy Docker Compose file
       template:
         src: roles/backend/templates/docker-compose.yml.j2
         dest: /home/ubuntu/backend/docker-compose.yml
+        owner: ubuntu
+        group: ubuntu
+        mode: "0644"
 
     - name: Start backend container
-      command: docker-compose -f /home/ubuntu/backend/docker-compose.yml up -d
+      shell: docker-compose -f /home/ubuntu/backend/docker-compose.yml up -d
       args:
         chdir: /home/ubuntu/backend
 
-    ############################################################
-    # 7️⃣ Install and configure Nginx
-    ############################################################
+    # ----------------------------
+    # Nginx Setup
+    # ----------------------------
     - name: Install Nginx
       apt:
         name: nginx
@@ -112,12 +106,16 @@
       copy:
         src: ../../nginx/revuhub.conf
         dest: /etc/nginx/sites-available/revuhub.conf
+        owner: root
+        group: root
+        mode: "0644"
 
     - name: Enable Nginx site
       file:
         src: /etc/nginx/sites-available/revuhub.conf
         dest: /etc/nginx/sites-enabled/revuhub.conf
         state: link
+        force: yes
 
     - name: Remove default Nginx site
       file:
@@ -128,3 +126,4 @@
       service:
         name: nginx
         state: restarted
+        enabled: yes
