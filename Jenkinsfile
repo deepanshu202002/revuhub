@@ -65,43 +65,42 @@ pipeline {
       }
     }
 
-    stage('Deploy Backend via Ansible') {
-  steps {
-    withCredentials([
-      string(credentialsId: 'revuhub-prod-env', variable: 'PROD_ENV'),
-      file(credentialsId: 'revuhub-ssh-key', variable: 'SSH_KEY')
-    ]) {
-      sh '''
-        # Write backend secrets to temp file
-        echo "$PROD_ENV" > /tmp/production.env
-        chmod 600 /tmp/production.env
+  stage('Deploy Backend via Ansible') {
+    steps {
+        withCredentials([
+            file(credentialsId: 'PROD_ENV', variable: 'PROD_ENV'),
+            sshUserPrivateKey(credentialsId: 'SSH_KEY', keyFileVariable: 'SSH_KEY')
+        ]) {
+            sh '''
+              chmod 600 $PROD_ENV
+              python3 -c "import json; print(json.dumps({'production_env_content': open('$PROD_ENV').read()}))" > /tmp/prod_env.json
 
-        # Convert to JSON for Ansible
-        python3 -c "import json; print(json.dumps({'production_env_content': open('/tmp/production.env').read()}))" > /tmp/prod_env.json
+              mkdir -p infra/ansible
 
-        # Create Ansible inventory dynamically
-        mkdir -p infra/ansible
-        BACKEND_IP=$(terraform output -raw revuhub_instance_public_ip)
-        echo "[backend]" > infra/ansible/inventory
-        echo "$BACKEND_IP ansible_user=ubuntu ansible_ssh_private_key_file=$SSH_KEY" >> infra/ansible/inventory
+              BACKEND_IP=$(terraform output -raw revuhub_instance_public_ip 2>/dev/null || true)
 
-        # Run Ansible to deploy Docker container on EC2
-        ansible-playbook -i infra/ansible/inventory infra/ansible/playbook.yml --extra-vars "@/tmp/prod_env.json"
-      '''
+              if [ -n "$BACKEND_IP" ]; then
+                echo "[backend]" > infra/ansible/inventory
+                echo "$BACKEND_IP ansible_user=ubuntu ansible_ssh_private_key_file=$SSH_KEY" >> infra/ansible/inventory
+              else
+                echo "ERROR: No backend IP found from Terraform outputs!"
+                exit 1
+              fi
+
+              ansible-playbook -i infra/ansible/inventory infra/ansible/playbook.yml --extra-vars @/tmp/prod_env.json
+            '''
+        }
     }
-  }
 }
+
 
 stage('Build Frontend & Deploy to S3') {
     steps {
-        withCredentials([
-            string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
-            string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
-        ]) {
+        withCredentials([usernamePassword(credentialsId: 'aws-creds', usernameVariable: 'AWS_ID', passwordVariable: 'AWS_SECRET')]) {
             sh '''
               # Export AWS credentials
-              export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
-              export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
+              export AWS_ACCESS_KEY_ID=$AWS_ID
+              export AWS_SECRET_ACCESS_KEY=$AWS_SECRET
               export AWS_DEFAULT_REGION=ap-south-1
 
               cd frontend
@@ -119,6 +118,7 @@ stage('Build Frontend & Deploy to S3') {
         }
     }
 }
+
 
 
   }
