@@ -84,6 +84,20 @@
         aws ecr get-login-password --region {{ aws_region }} | docker login --username AWS --password-stdin {{ ecr_repo }}
       args:
         executable: /bin/bash
+    - name: Install AWS CLI v2
+      shell: |
+        curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "/tmp/awscliv2.zip"
+        unzip -o /tmp/awscliv2.zip -d /tmp
+        sudo /tmp/aws/install
+      args:
+        creates: /usr/local/bin/aws
+    
+    - name: Login to AWS ECR
+      shell: >
+        aws ecr get-login-password --region {{ aws_region }} | docker login --username AWS --password-stdin {{ ecr_repo }}
+      args:
+        executable: /bin/bash
+
 
     - name: Start backend container
       shell: docker-compose -f {{ backend_dir }}/docker-compose.yml up -d
