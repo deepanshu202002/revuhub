@@ -33,7 +33,8 @@ pipeline {
             mkdir -p ../../frontend
 
             # Write frontend deploy.env with only backend URL
-            echo "REACT_APP_BACKEND_URL=http://$BACKEND_IP:4000/api" > ../../frontend/deploy.env
+            echo "VITE_REACT_APP_BACKEND_URL=http://$BACKEND_IP:4000/api" > ../../frontend/deploy.env
+           echo "VITE_GOOGLE_CLIENT_ID=591507211815-evk7chd40soo41lilg8pp3qc64pev5l6.apps.googleusercontent.com">> ../../frontend/deploy.env
 
             echo "Generated frontend deploy.env:"
             cat ../../frontend/deploy.env

@@ -1,4 +1,4 @@
-const API_BASE = process.env.REACT_APP_BACKEND_URL;
+const API_BASE = import.meta.env.VITE_REACT_APP_BACKEND_URL;
 
 export async function api(path, { method = "GET", body, token, headers } = {}) {
   console.log("token only", token);

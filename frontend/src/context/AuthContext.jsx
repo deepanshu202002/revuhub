@@ -11,9 +11,9 @@ export function AuthProvider({ children }) {
     const raw = localStorage.getItem("revuhub_auth");
     return raw ? JSON.parse(raw) : null;
   });
-
+  const BACKEND_URL = import.meta.env.VITE_REACT_APP_BACKEND_URL;
   const loginWithGoogleToken = async (googleToken) => {
-    const res = await fetch("http://localhost:4000" + "/api/auth/google", {
+    const res = await fetch(BACKEND_URL + "/api/auth/google", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ tokenId: googleToken }),
@@ -44,7 +44,7 @@ export function useAuth() {
 
 export function GoogleAuthWrapper({ children }) {
   return (
-    <GoogleOAuthProvider clientId={"591507211815-evk7chd40soo41lilg8pp3qc64pev5l6.apps.googleusercontent.com"}>
+    <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
       {children}
     </GoogleOAuthProvider>
   );
