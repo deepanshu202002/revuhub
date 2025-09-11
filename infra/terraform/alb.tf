@@ -1,3 +1,27 @@
+# Security Group for ALB
+resource "aws_security_group" "alb_sg" {
+  name        = "alb-sg"
+  description = "Allow HTTP traffic"
+  vpc_id      = aws_vpc.revuhub_vpc.id
+
+  ingress {
+    description = "Allow HTTP"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = { Name = "alb-sg" }
+}
+
 # Application Load Balancer
 resource "aws_lb" "revuhub_alb" {
   name               = "revuhub-alb"
@@ -10,18 +34,18 @@ resource "aws_lb" "revuhub_alb" {
 
   tags = { Name = "revuhub-alb" }
 
-  depends_on = [aws_security_group.alb_sg] # Ensure SG exists before creating ALB
+  depends_on = [aws_security_group.alb_sg] # SG must exist first
 }
 
 # Target Group for Backend EC2s
 resource "aws_lb_target_group" "revuhub_tg" {
   name     = "revuhub-tg"
-  port     = 4000       # Backend app port
+  port     = 4000
   protocol = "HTTP"
   vpc_id   = aws_vpc.revuhub_vpc.id
 
   health_check {
-    path                = "/api/health"  # Backend health endpoint
+    path                = "/api/health"
     interval            = 30
     timeout             = 5
     healthy_threshold   = 2
