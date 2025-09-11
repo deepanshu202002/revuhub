@@ -2,23 +2,22 @@ version: "3.8"
 
 services:
   backend:
-    image: <AWS_ACCOUNT_ID>.dkr.ecr.ap-south-1.amazonaws.com/revuhub-backend:latest
-    container_name: revuhub-backend
+    image: 842676016170.dkr.ecr.ap-south-1.amazonaws.com/revuhub-backend:43
+    container_name: backend-backend-1
     env_file:
-      - .env
+      - ./deploy.env
     restart: always
-    expose:
-      - "5000"
+    ports:
+      - "4000:4000"  # expose backend port
     networks:
       - revuhub-net
 
   nginx:
     image: nginx:stable-alpine
-    container_name: revuhub-nginx
+    container_name: backend-nginx-1
     ports:
-      - "80:80"
+      - "80:80"   # expose Nginx port
     volumes:
-      # Mount your nginx config file
       - ./nginx/revuhub.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - backend
