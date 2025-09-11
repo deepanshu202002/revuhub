@@ -38,7 +38,7 @@ pipeline {
 
             # Overwrite deploy.env with HTTPS CloudFront URL
             rm -f ../../frontend/deploy.env
-            echo "VITE_REACT_APP_BACKEND_URL=https://$CLOUDFRONT_URL/api" > ../../frontend/deploy.env
+            echo "VITE_REACT_APP_BACKEND_URL=https://$CLOUDFRONT_URL" > ../../frontend/deploy.env
             echo "VITE_GOOGLE_CLIENT_ID=591507211815-evk7chd40soo41lilg8pp3qc64pev5l6.apps.googleusercontent.com" >> ../../frontend/deploy.env
 
             echo "Generated frontend deploy.env:"
