@@ -9,17 +9,19 @@ resource "aws_lb" "revuhub_alb" {
   enable_deletion_protection = false
 
   tags = { Name = "revuhub-alb" }
+
+  depends_on = [aws_security_group.alb_sg] # Ensure SG exists before creating ALB
 }
 
 # Target Group for Backend EC2s
 resource "aws_lb_target_group" "revuhub_tg" {
   name     = "revuhub-tg"
-  port     = 4000 # backend app port
+  port     = 4000       # Backend app port
   protocol = "HTTP"
   vpc_id   = aws_vpc.revuhub_vpc.id
 
   health_check {
-    path                = "/api/health"   # change to your backend health endpoint
+    path                = "/api/health"  # Backend health endpoint
     interval            = 30
     timeout             = 5
     healthy_threshold   = 2
