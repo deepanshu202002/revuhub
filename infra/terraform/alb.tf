@@ -41,7 +41,3 @@ resource "aws_lb_target_group_attachment" "revuhub_attach" {
   port             = 4000
 }
 
-output "alb_dns_name" {
-  description = "DNS name of the ALB"
-  value       = aws_lb.revuhub_alb.dns_name
-}
