@@ -23,7 +23,7 @@ resource "aws_cloudfront_distribution" "frontend_distribution" {
   restrictions {
     geo_restriction { restriction_type = "none" }
   }
-aresource "aws_cloudfront_distribution" "frontend_distribution" {
+resource "aws_cloudfront_distribution" "frontend_distribution" {
   origin {
     domain_name = aws_s3_bucket.frontend_bucket.bucket_regional_domain_name
     origin_id   = "S3-revuhub"
