@@ -39,3 +39,7 @@ output "frontend_distribution_id" {
 output "frontend_distribution_domain_name" {
   value = aws_cloudfront_distribution.frontend_distribution.domain_name
 }
+output "alb_dns_name" {
+  description = "Public DNS of the Application Load Balancer"
+  value       = aws_lb.revuhub_alb.dns_name
+}
