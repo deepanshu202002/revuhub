@@ -26,14 +26,15 @@ pipeline {
             terraform init -input=false
             terraform apply -auto-approve
 
-            # Capture ALB DNS Name
+            # Capture ALB and CloudFront URLs
             ALB_URL=$(terraform output -raw alb_dns_name || true)
+            CLOUDFRONT_URL=$(terraform output -raw cloudfront_url || true)
 
             # Ensure frontend folder exists
             mkdir -p ../../frontend
 
-            # Write deploy.env with ALB URL + Google Client ID
-            echo "VITE_REACT_APP_BACKEND_URL=http://$ALB_URL/api" > ../../frontend/deploy.env
+            # Write deploy.env with CloudFront HTTPS backend URL + Google Client ID
+            echo "VITE_REACT_APP_BACKEND_URL=https://$CLOUDFRONT_URL/api" > ../../frontend/deploy.env
             echo "VITE_GOOGLE_CLIENT_ID=591507211815-evk7chd40soo41lilg8pp3qc64pev5l6.apps.googleusercontent.com" >> ../../frontend/deploy.env
 
             echo "Generated frontend deploy.env:"
@@ -59,7 +60,7 @@ pipeline {
             export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
             export AWS_DEFAULT_REGION=$AWS_REGION
 
-            # Correct ECR login
+            # ECR login
             aws ecr get-login-password --region $AWS_REGION | \
               docker login --username AWS --password-stdin ${ECR_REPO%/*}
 

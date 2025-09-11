@@ -43,3 +43,8 @@ output "alb_dns_name" {
   description = "Public DNS of the Application Load Balancer"
   value       = aws_lb.revuhub_alb.dns_name
 }
+
+output "cloudfront_url" {
+  value = aws_cloudfront_distribution.frontend_distribution.domain_name
+}
+
