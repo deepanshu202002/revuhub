@@ -1,22 +1,30 @@
 version: "3.8"
+
 services:
   backend:
-    image: 842676016170.dkr.ecr.ap-south-1.amazonaws.com/revuhub-backend:latest
+    image: <AWS_ACCOUNT_ID>.dkr.ecr.ap-south-1.amazonaws.com/revuhub-backend:latest
+    container_name: revuhub-backend
     env_file:
-      - ./infra/ansible/secrets/production.env_file
+      - .env
     restart: always
-    ports:
-      - "4000:4000"
+    expose:
+      - "5000"
+    networks:
+      - revuhub-net
 
   nginx:
-    image: nginx:latest
-    restart: always
+    image: nginx:stable-alpine
+    container_name: revuhub-nginx
     ports:
       - "80:80"
     volumes:
-      # Make sure this path is a FILE, not a directory
+      # Mount your nginx config file
       - ./nginx/revuhub.conf:/etc/nginx/conf.d/default.conf:ro
-      # Make sure this path is a DIRECTORY
-      - ./frontend/build:/usr/share/nginx/html
     depends_on:
       - backend
+    networks:
+      - revuhub-net
+
+networks:
+  revuhub-net:
+    driver: bridge
