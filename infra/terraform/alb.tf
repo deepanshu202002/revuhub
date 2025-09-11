@@ -43,6 +43,6 @@ resource "aws_lb_listener" "http" {
 # Attach EC2 instance(s) to Target Group
 resource "aws_lb_target_group_attachment" "revuhub_attach" {
   target_group_arn = aws_lb_target_group.revuhub_tg.arn
-  target_id        = aws_instance.revuhub_backend.id
+  target_id        = aws_instance.revuhub.id
   port             = 4000
 }

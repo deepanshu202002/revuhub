@@ -12,8 +12,8 @@ output "revuhub_vpc_id" {
   value = aws_vpc.revuhub_vpc.id
 }
 
-output "revuhub_subnet_id" {
-  value = aws_subnet.public.id
+output "revuhub_subnet_ids" {
+  value = [aws_subnet.public_1.id, aws_subnet.public_2.id]
 }
 
 # Security Group
