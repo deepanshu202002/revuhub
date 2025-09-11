@@ -15,8 +15,16 @@ dotenv.config();
 import { checkS3Credentials } from "../backend/src/config/s3.js";
 connectDB();
 
+const cors = require("cors");
+
 const app = express();
-app.use(cors());
+app.use(
+  cors({
+    origin: "https://d264sbvxctl92w.cloudfront.net",
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
 app.use(express.json());
 checkS3Credentials();
 app.get("/", (req, res) => res.send("RevuHub Api Running"));
