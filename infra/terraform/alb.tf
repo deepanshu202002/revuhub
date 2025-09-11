@@ -19,6 +19,7 @@ resource "aws_lb_target_group" "revuhub_tg" {
   vpc_id   = aws_vpc.revuhub_vpc.id
 
   health_check {
+    # Adjust path if your backend has /api/health or similar
     path                = "/"
     interval            = 30
     timeout             = 5
@@ -33,6 +34,21 @@ resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.revuhub_alb.arn
   port              = 80
   protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.revuhub_tg.arn
+  }
+}
+
+# Optional: Listener for ALB (HTTPS on port 443)
+# Requires a valid ACM certificate in the same region
+resource "aws_lb_listener" "https" {
+  load_balancer_arn = aws_lb.revuhub_alb.arn
+  port              = 443
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-2016-08"
+  certificate_arn   = aws_acm_certificate.revuhub_cert.arn  # <-- replace with your ACM cert ARN
 
   default_action {
     type             = "forward"
