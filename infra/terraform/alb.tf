@@ -1,13 +1,21 @@
 # Security Group for ALB
 resource "aws_security_group" "alb_sg" {
   name        = "alb-sg"
-  description = "Allow HTTP traffic"
+  description = "Allow HTTP and HTTPS traffic"
   vpc_id      = aws_vpc.revuhub_vpc.id
 
   ingress {
-    description = "Allow HTTP"
+    description = "Allow HTTP from internet"
     from_port   = 80
     to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "Allow HTTPS from internet"
+    from_port   = 443
+    to_port     = 443
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
@@ -22,6 +30,27 @@ resource "aws_security_group" "alb_sg" {
   tags = { Name = "alb-sg" }
 }
 
+# Backend Security Group (for the EC2 instance)
+resource "aws_security_group" "backend_sg" {
+  name        = "backend-sg"
+  description = "Allow traffic from ALB on port 4000"
+  vpc_id      = aws_vpc.revuhub_vpc.id
+
+  ingress {
+    from_port       = 4000
+    to_port         = 4000
+    protocol        = "tcp"
+    security_groups = [aws_security_group.alb_sg.id]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
 # Application Load Balancer
 resource "aws_lb" "revuhub_alb" {
   name               = "revuhub-alb"
@@ -33,32 +62,22 @@ resource "aws_lb" "revuhub_alb" {
   enable_deletion_protection = false
 
   tags = { Name = "revuhub-alb" }
-
-  depends_on = [aws_security_group.alb_sg] # SG must exist first
 }
 
 # Target Group for Backend EC2s
 resource "aws_lb_target_group" "revuhub_tg" {
-  name     = "revuhub-tg"
-  port     = 4000
-  protocol = "HTTP"
-  vpc_id   = aws_vpc.revuhub_vpc.id
-
-  health_check {
-    path                = "/api/health"
-    interval            = 30
-    timeout             = 5
-    healthy_threshold   = 2
-    unhealthy_threshold = 2
-    matcher             = "200-399"
-  }
+  name        = "revuhub-tg"
+  port        = 4000
+  protocol    = "HTTP"
+  vpc_id      = aws_vpc.revuhub_vpc.id
 }
 
-# Listener for ALB (HTTP on port 80)
-resource "aws_lb_listener" "http" {
+# Listener for ALB (HTTPS on port 443)
+resource "aws_lb_listener" "https" {
   load_balancer_arn = aws_lb.revuhub_alb.arn
-  port              = 80
-  protocol          = "HTTP"
+  port              = 443
+  protocol          = "HTTPS"
+  certificate_arn   = var.alb_certificate_arn # You must provide this ARN
 
   default_action {
     type             = "forward"
