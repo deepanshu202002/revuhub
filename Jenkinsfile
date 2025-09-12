@@ -22,9 +22,14 @@ pipeline {
             export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
             export AWS_DEFAULT_REGION=$AWS_REGION
 
+            # Get Jenkins node public IP
+            MY_IP=$(curl -s https://checkip.amazonaws.com)/32
+            echo "Using Jenkins public IP: $MY_IP"
+
             cd infra/terraform
             terraform init -input=false
-            terraform apply -auto-approve
+            terraform plan -var="my_ip=$MY_IP" -out=tfplan
+            terraform apply -auto-approve tfplan
 
             # Capture ALB DNS and CloudFront domain
             ALB_URL=$(terraform output -raw alb_dns_name || true)

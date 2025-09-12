@@ -15,15 +15,28 @@ resource "aws_lb" "revuhub_alb" {
 
 # Target Group for Backend EC2s
 resource "aws_lb_target_group" "revuhub_tg" {
-  name        = "revuhub-tg"
-  port        = 4000
-  protocol    = "HTTP"
-  vpc_id      = aws_vpc.revuhub_vpc.id
+  name     = "revuhub-tg"
+  port     = 4000
+  protocol = "HTTP"
+  vpc_id   = aws_vpc.revuhub_vpc.id
+
+  # Health check for backend on port 4000
+  health_check {
+    path                = "/"
+    protocol            = "HTTP"
+    matcher             = "200-399"
+    interval            = 30
+    timeout             = 5
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+    port                = "4000"
+  }
 
   tags = {
     Name = "revuhub-tg"
   }
 }
+
 
 # Listener for ALB (HTTP on port 80)
 resource "aws_lb_listener" "http" {
