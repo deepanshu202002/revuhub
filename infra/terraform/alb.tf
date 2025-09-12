@@ -1,54 +1,34 @@
-# Security Group for ALB
+# Security Group for the Application Load Balancer (ALB)
 resource "aws_security_group" "alb_sg" {
-  name        = "alb-sg"
+  name        = "revuhub-alb-sg"
   description = "Allow HTTP and HTTPS traffic"
   vpc_id      = aws_vpc.revuhub_vpc.id
 
+  # Allow HTTP inbound traffic
   ingress {
-    description = "Allow HTTP from internet"
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  # Allow HTTPS inbound traffic
   ingress {
-    description = "Allow HTTPS from internet"
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  # Allow outbound traffic to anywhere
   egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
+    from_port = 0
+    to_port   = 0
+    protocol  = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = { Name = "alb-sg" }
-}
-
-# Backend Security Group (for the EC2 instance)
-resource "aws_security_group" "backend_sg" {
-  name        = "backend-sg"
-  description = "Allow traffic from ALB on port 4000"
-  vpc_id      = aws_vpc.revuhub_vpc.id
-
-  ingress {
-    from_port       = 4000
-    to_port         = 4000
-    protocol        = "tcp"
-    security_groups = [aws_security_group.alb_sg.id]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+  tags = { Name = "revuhub-alb-sg" }
 }
 
 # Application Load Balancer
@@ -56,7 +36,7 @@ resource "aws_lb" "revuhub_alb" {
   name               = "revuhub-alb"
   internal           = false
   load_balancer_type = "application"
-  security_groups    = [aws_security_group.alb_sg.id]
+  security_groups    = [aws_security_group.alb_sg.id] # Referencing the ALB's SG
   subnets            = [aws_subnet.public_1.id, aws_subnet.public_2.id]
 
   enable_deletion_protection = false
