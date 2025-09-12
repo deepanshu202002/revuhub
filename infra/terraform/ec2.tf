@@ -72,4 +72,7 @@ resource "aws_instance" "revuhub" {
               EOF
 
   tags = { Name = "revuhub-backend-instance" }
+  lifecycle {
+    create_before_destroy = true
+  }
 }
