@@ -28,8 +28,9 @@ pipeline {
 
             cd infra/terraform
             terraform init -input=false
-            terraform import -no-color aws_security_group.alb_sg sg-035dc75746aa00f1a || true
-            terraform import -no-color aws_security_group.backend_sg sg-03fd1636f5e9bdf75 || true
+           terraform import -var="my_ip=$MY_IP" aws_security_group.alb_sg sg-035dc75746aa00f1a || true
+terraform import -var="my_ip=$MY_IP" aws_security_group.backend_sg sg-03fd1636f5e9bdf75 || true
+
 
             terraform plan -var="my_ip=$MY_IP" -out=tfplan
             terraform apply -auto-approve tfplan
